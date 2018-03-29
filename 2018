@@ -1,0 +1,86 @@
+from pytrends.request import TrendReq as pyGTrends
+import time
+import os
+from random import randint
+import sys
+import pandas as pd
+from pandas.compat import StringIO
+ 
+# Add your Gmail username to the google_username variable and your Gmail password to the google_password variable.
+ 
+# This script downloads a series of CSV files from Google Trends. Please specify a filepath for where you'd like these files to be stored in the below variable.
+path = "/Users/trishaa/data analytics/ota"
+ 
+# Specify the filename of a CSV with a list of keywords in the variable, keyordcsv. The CSV should be one column, with header equal to Keywords (case sensitive).
+keywordcsv = "Hotel New Platform2.csv"
+#keywords = pd.read_csv(keywordcsv)
+with open(keywordcsv,'rb') as f:
+    contents = f.read()
+    
+# CODEC CODE    
+#https://docs.python.org/3/library/codecs.html#standard-encodings    
+textkeywords=StringIO(contents.decode(encoding="cp950", errors="strict"))
+file= pd.read_csv(textkeywords)
+df =pd.DataFrame(file) 
+keywords = df['keyword']
+
+print(keywords.head())
+
+# Downloads and Calculate Slope:
+keywordlist = pd.DataFrame(columns=["keyword","slope","stillIncrease"])
+#for index, row in keywords.iterrows():
+for row in keywords:
+    anew= pyGTrends(hl='en-US,tz=360')
+
+    keyword=row
+    print(keyword)
+    anew.build_payload([keyword], cat=0, timeframe='today 5-y', geo='HK', gprop='')
+    #results
+    trenddata = pd.DataFrame(anew.interest_over_time())
+    trenddata = trenddata.dropna()
+    trenddata = trenddata.ix[1:]
+    trenddata.rename(columns={keyword: 'trends'}, inplace=True)
+
+    if len(trenddata.index) == 0:
+        print(keyword + ' empty')
+        continue
+
+    trenddata['trends'] = pd.to_numeric(trenddata['trends'], errors='coerce')
+
+
+    trenddata.reset_index(level=0, inplace=True)
+    trenddata['date'] = pd.to_datetime(trenddata['date'])
+    trenddata['date'] = pd.to_datetime(trenddata['date'])
+    trenddata['year'] = pd.DatetimeIndex(trenddata['date']).year
+    trenddata['month'] = pd.DatetimeIndex(trenddata['date']).month
+    trenddata['day'] = pd.DatetimeIndex(trenddata['date']).day
+    #print(trenddata.head())
+    time.sleep(randint(60,90))
+   
+    #stdev = trenddata.groupby(['year']).std()
+    #print(stdev)
+    def slope_formula(xone, yone, xtwo, ytwo):
+        return (ytwo-yone)/(xtwo-xone)
+ 
+    maxyear = trenddata['year'].max()
+    grouped = trenddata.groupby(['year']).mean()
+    grouped.reset_index(level=0, inplace=True)
+    print(grouped)
+    y2017=(grouped.loc[grouped['year']== (maxyear-1)]['trends'])
+    y2016=(grouped.loc[grouped['year']== (maxyear-2)]['trends'])
+    y2015=(grouped.loc[grouped['year']== (maxyear-3)]['trends'])
+    y2014=(grouped.loc[grouped['year']== (maxyear-4)]['trends'])
+    y2013 =(grouped.loc[grouped['year']== (maxyear-5)]['trends'])
+    slope = (y2017-float(y2016)).to_string(index=False)
+    print(slope)
+    isTrendIncreaseLast2Years = False
+    if (float(y2017)>= float(y2016) and float(y2016) >= float(y2015)) or ((float(y2017)- float(y2016)) > 25) :
+        isTrendIncreaseLast2Years = True
+    keywordlist = keywordlist.append({'keyword':keyword,'slope':slope, 'stillIncrease' :isTrendIncreaseLast2Years }, ignore_index=True)
+   
+    #os.remove(csvname)
+ 
+# Specify a csv filename to output the slope values.
+keywordlist.to_csv("trends_slope_keywords_hotel_new_platform2.csv", sep=",", encoding="cp950", index=False)
+ 
+print("Slope calculation and CSV export complete.")
